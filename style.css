@@ -147,7 +147,7 @@ body {
 
 .cards-container {
   display: flex;
-  gap: 3px;
+  gap: 4px;
 }
 
 .north { top: 10px; left: 50%; transform: translateX(-50%); }
@@ -174,7 +174,7 @@ body {
   z-index: 40;
 }
 
-#dealer-indicator.dealer-0 { bottom: 85px; left: 50%; transform: translateX(-50%); }
+#dealer-indicator.dealer-0 { bottom: 115px; left: 50%; transform: translateX(-50%); }
 #dealer-indicator.dealer-1 { left: 130px; top: 50%; transform: translateY(-50%); }
 #dealer-indicator.dealer-2 { top: 75px; left: 50%; transform: translateX(-50%); }
 #dealer-indicator.dealer-3 { right: 130px; top: 50%; transform: translateY(-50%); }
@@ -184,8 +184,8 @@ body {
   position: absolute;
   top: 46%;
   left: 50%;
-  width: 180px;
-  height: 140px;
+  width: 220px;
+  height: 170px;
   transform: translate(-50%, -50%);
   border: 2px dashed rgba(255, 255, 255, 0.2);
   border-radius: 8px;
@@ -195,10 +195,10 @@ body {
   position: absolute;
 }
 
-.trick-card.played-0 { bottom: 8px; left: 50%; transform: translateX(-50%); }
-.trick-card.played-1 { left: 10px; top: 50%; transform: translateY(-50%); }
-.trick-card.played-2 { top: 8px; left: 50%; transform: translateX(-50%); }
-.trick-card.played-3 { right: 10px; top: 50%; transform: translateY(-50%); }
+.trick-card.played-0 { bottom: 10px; left: 50%; transform: translateX(-50%); }
+.trick-card.played-1 { left: 12px; top: 50%; transform: translateY(-50%); }
+.trick-card.played-2 { top: 10px; left: 50%; transform: translateX(-50%); }
+.trick-card.played-3 { right: 12px; top: 50%; transform: translateY(-50%); }
 
 /* Bid Dialog Boxes */
 .bid-dialog {
@@ -214,7 +214,7 @@ body {
   white-space: nowrap;
 }
 
-.south-dialog { bottom: 85px; left: 50%; transform: translateX(-50%); }
+.south-dialog { bottom: 115px; left: 50%; transform: translateX(-50%); }
 .west-dialog  { left: 130px; top: 38%; transform: translateY(-50%); }
 .north-dialog { top: 75px; left: 50%; transform: translateX(-50%); }
 .east-dialog  { right: 130px; top: 38%; transform: translateY(-50%); }
@@ -222,7 +222,7 @@ body {
 /* Bidding Panel */
 #bidding-panel {
   position: absolute;
-  bottom: 80px;
+  bottom: 110px;
   left: 50%;
   transform: translateX(-50%);
   background: rgba(0, 0, 0, 0.95);
@@ -278,7 +278,7 @@ body {
   background: #e0a800;
 }
 
-/* Playing Cards */
+/* Playing Cards (Default / Computers) */
 .card {
   width: 38px;
   height: 54px;
@@ -293,6 +293,15 @@ body {
   font-size: 12px;
   box-shadow: 1px 1px 3px rgba(0,0,0,0.3);
   user-select: none;
+}
+
+/* Larger Cards Specifically for Human Hand & Played Trick Center Cards */
+#south .card, .trick-card {
+  width: 54px;
+  height: 76px;
+  font-size: 16px;
+  border-radius: 6px;
+  border-width: 2px;
 }
 
 .card.red { color: #d32f2f; }
@@ -322,14 +331,16 @@ body {
     border-radius: 0;
   }
 
-  .card {
-    width: 36px;
-    height: 52px;
-    font-size: 11px;
+  /* Scale down human hand and trick center cards slightly on smaller mobile viewports so they fit nicely */
+  #south .card, .trick-card {
+    width: 44px;
+    height: 64px;
+    font-size: 14px;
   }
 
   .west .cards-container .card, 
-  .east .cards-container .card {
+  .east .cards-container .card,
+  .north .cards-container .card {
     width: 20px;
     height: 30px;
     font-size: 9px;
