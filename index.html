@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
+  <title>3-Spot (Nault Family Version)</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="game-container">
+    <!-- Welcome Overlay -->
+    <div id="welcome-modal" class="modal-overlay">
+      <div class="modal-card">
+        <h1>Welcome to the Nault family version of 3-Spot</h1>
+        <p>A 32-card trick-taking game optimized for desktop and mobile play!</p>
+        <button id="btn-start-game" class="primary-btn">Start Game</button>
+      </div>
+    </div>
+
+    <!-- Game Over Overlay -->
+    <div id="gameover-modal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <h1 id="gameover-title">Game Over</h1>
+        <p id="gameover-message"></p>
+        
+        <!-- Andy's Broomstick Quote Box -->
+        <div id="broomstick-box" class="broomstick-dialog hidden">
+          <p class="speaker-name">Andy (Partner):</p>
+          <p class="quote-text">"What a broom stick.... tsk.... tsk"</p>
+        </div>
+
+        <button id="btn-restart-game" class="primary-btn">Play Again</button>
+      </div>
+    </div>
+
+    <!-- Scoreboard -->
+    <div id="scoreboard">
+      <div id="team-us">Us: <span id="score-us">0</span></div>
+      <div id="team-them">Them: <span id="score-them">0</span></div>
+      <div id="trump-indicator">Trump: <span id="trump-suit">None</span></div>
+      <div id="tricks-us" class="trick-sub">Us Tricks: <span id="tricks-us-count">0</span></div>
+      <div id="tricks-them" class="trick-sub">Them Tricks: <span id="tricks-them-count">0</span></div>
+    </div>
+
+    <!-- Player Areas -->
+    <div id="north" class="player-area north">
+      <div class="player-name">Andy (Partner)</div>
+      <div class="cards-container"></div>
+    </div>
+
+    <div id="west" class="player-area west">
+      <div class="player-name">John</div>
+      <div class="cards-container"></div>
+    </div>
+
+    <div id="east" class="player-area east">
+      <div class="player-name">Dave</div>
+      <div class="cards-container"></div>
+    </div>
+
+    <div id="south" class="player-area south">
+      <div class="player-name">South (You)</div>
+      <div class="cards-container"></div>
+    </div>
+
+    <!-- Center Play Area -->
+    <div id="trick-area"></div>
+
+    <!-- Dealer Indicator -->
+    <div id="dealer-indicator">DEALER</div>
+
+    <!-- Bidding Dialog Boxes -->
+    <div id="bid-dialog-0" class="bid-dialog south-dialog hidden"></div>
+    <div id="bid-dialog-1" class="bid-dialog west-dialog hidden"></div>
+    <div id="bid-dialog-2" class="bid-dialog north-dialog hidden"></div>
+    <div id="bid-dialog-3" class="bid-dialog east-dialog hidden"></div>
+
+    <!-- Human Bidding Controls -->
+    <div id="bidding-panel" class="hidden">
+      <h3 id="bidding-header">Your Bid</h3>
+      <div class="bidding-controls">
+        <div class="control-group">
+          <label for="bid-amount" id="lbl-bid-amount">Bid:</label>
+          <select id="bid-amount">
+            <option value="7">7</option>
+            <option value="8">8</option>
+            <option value="9">9</option>
+            <option value="10">10</option>
+            <option value="11">11</option>
+            <option value="12">12</option>
+          </select>
+        </div>
+
+        <div class="control-group">
+          <label for="bid-suit">Suit:</label>
+          <select id="bid-suit">
+            <option value="H">Hearts ♥</option>
+            <option value="D">Diamonds ♦</option>
+            <option value="C">Clubs ♣</option>
+            <option value="S">Spades ♠</option>
+            <option value="N">No Trump</option>
+          </select>
+        </div>
+
+        <div class="button-group">
+          <button id="btn-submit-bid">Submit Bid</button>
+          <button id="btn-pass">Pass</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
