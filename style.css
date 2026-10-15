@@ -161,23 +161,23 @@ body {
   gap: -35px; /* overlap cards vertically on sides to save space */
 }
 
-/* Dealer Badge */
+/* Dealer Badge - Moved safely out of the way */
 #dealer-indicator {
   position: absolute;
   background: #ffc107;
   color: #000;
   font-weight: bold;
   font-size: 10px;
-  padding: 2px 5px;
+  padding: 2px 6px;
   border-radius: 3px;
   text-transform: uppercase;
   z-index: 40;
 }
 
-#dealer-indicator.dealer-0 { bottom: 115px; left: 50%; transform: translateX(-50%); }
-#dealer-indicator.dealer-1 { left: 130px; top: 50%; transform: translateY(-50%); }
-#dealer-indicator.dealer-2 { top: 75px; left: 50%; transform: translateX(-50%); }
-#dealer-indicator.dealer-3 { right: 130px; top: 50%; transform: translateY(-50%); }
+#dealer-indicator.dealer-0 { bottom: 92px; right: 20px; transform: none; }
+#dealer-indicator.dealer-1 { left: 95px; top: 38%; transform: translateY(-50%); }
+#dealer-indicator.dealer-2 { top: 65px; right: 20px; transform: none; }
+#dealer-indicator.dealer-3 { right: 95px; top: 38%; transform: translateY(-50%); }
 
 /* Trick Area Layout */
 #trick-area {
@@ -200,7 +200,7 @@ body {
 .trick-card.played-2 { top: 10px; left: 50%; transform: translateX(-50%); }
 .trick-card.played-3 { right: 12px; top: 50%; transform: translateY(-50%); }
 
-/* Bid Dialog Boxes */
+/* Bid Dialog Boxes - Positioned neatly around the players/corners without overlapping center */
 .bid-dialog {
   position: absolute;
   background: #ffffff;
@@ -214,15 +214,15 @@ body {
   white-space: nowrap;
 }
 
-.south-dialog { bottom: 115px; left: 50%; transform: translateX(-50%); }
-.west-dialog  { left: 130px; top: 38%; transform: translateY(-50%); }
-.north-dialog { top: 75px; left: 50%; transform: translateX(-50%); }
-.east-dialog  { right: 130px; top: 38%; transform: translateY(-50%); }
+.south-dialog { bottom: 92px; left: 20px; transform: none; }
+.west-dialog  { left: 95px; top: 45%; transform: translateY(-50%); }
+.north-dialog { top: 65px; left: 20px; transform: none; }
+.east-dialog  { right: 95px; top: 45%; transform: translateY(-50%); }
 
 /* Bidding Panel */
 #bidding-panel {
   position: absolute;
-  bottom: 110px;
+  bottom: 95px;
   left: 50%;
   transform: translateX(-50%);
   background: rgba(0, 0, 0, 0.95);
@@ -331,7 +331,6 @@ body {
     border-radius: 0;
   }
 
-  /* Scale down human hand and trick center cards slightly on smaller mobile viewports so they fit nicely */
   #south .card, .trick-card {
     width: 44px;
     height: 64px;
