@@ -118,7 +118,7 @@ body {
   padding: 8px 12px;
   border-radius: 6px;
   font-size: 12px;
-  z-index: 60;
+  z-index: 30;
   line-height: 1.3;
 }
 
@@ -200,7 +200,7 @@ body {
 .trick-card.played-2 { top: 10px; left: 50%; transform: translateX(-50%); }
 .trick-card.played-3 { right: 12px; top: 50%; transform: translateY(-50%); }
 
-/* Bid Dialog Boxes - Positioned safely next to name tags to eliminate interference */
+/* Bid Dialog Boxes - Positioned cleanly away from the scoreboard and center */
 .bid-dialog {
   position: absolute;
   background: #ffffff;
@@ -216,13 +216,13 @@ body {
 
 .south-dialog { bottom: 98px; left: 25px; transform: none; }
 .west-dialog  { left: 10px; top: 32%; transform: none; }
-.north-dialog { top: 45px; left: 25px; transform: none; }
+.north-dialog { top: 45px; right: 28%; transform: none; } /* Moved to the right of Andy's name to avoid scoreboard */
 .east-dialog  { right: 10px; top: 32%; transform: none; }
 
-/* Bidding Panel */
+/* Bidding Panel - Positioned higher up so it doesn't cover human cards */
 #bidding-panel {
   position: absolute;
-  bottom: 100px;
+  bottom: 110px;
   left: 50%;
   transform: translateX(-50%);
   background: rgba(0, 0, 0, 0.95);
