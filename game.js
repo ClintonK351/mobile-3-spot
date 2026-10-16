@@ -280,6 +280,19 @@ function processPlayTurn() {
   }
 }
 
+function isCardBoss(card) {
+  // Check if card is the highest remaining rank in its suit based on current hand and played cards
+  let maxRankValue = RANK_ORDER[card.rank];
+  for (let i = 0; i < 4; i++) {
+    gameState.hands[i].forEach(c => {
+      if (c.suit === card.suit && RANK_ORDER[c.rank] > maxRankValue) {
+        maxRankValue = RANK_ORDER[c.rank];
+      }
+    });
+  }
+  return RANK_ORDER[card.rank] === maxRankValue;
+}
+
 function playAICard() {
   const pIndex = gameState.activePlayer;
   const hand = gameState.hands[pIndex];
@@ -312,15 +325,40 @@ function playAICard() {
     const isFiveHeartsPlayed = gameState.currentTrick.some(p => p.card.suit === 'H' && p.card.rank === '5');
 
     if (isPartnerWinning) {
-      if (fiveHearts) {
-        chosenCard = fiveHearts;
-      } else {
-        const nonThreeSpades = legalCards.filter(c => !(c.suit === 'S' && c.rank === '3'));
-        if (nonThreeSpades.length > 0) {
-          nonThreeSpades.sort((a, b) => RANK_ORDER[a.rank] - RANK_ORDER[b.rank]);
-          chosenCard = nonThreeSpades[0];
+      // Check if partner's lead was a non-trump boss card
+      let partnerPlay = gameState.currentTrick.find(p => p.playerIndex === partnerIndex);
+      let isPartnerBossLead = partnerPlay && 
+                              partnerPlay.card.suit !== gameState.trumpSuit && 
+                              isCardBoss(partnerPlay.card);
+
+      if (isPartnerBossLead && gameState.trumpSuit && gameState.trumpSuit !== 'N') {
+        // Evaluate exceptions for trumping partner's boss lead:
+        // 1. Holding 5H or 3S or needing lead / short trumps
+        let needsLead = fiveHearts || threeSpades || hand.length <= 3;
+        let isShortTrumps = hand.filter(c => c.suit === gameState.trumpSuit).length <= 1;
+        let mustRuffOrWorseDiscard = legalCards.some(c => c.suit === gameState.trumpSuit) && (needsLead || isShortTrumps);
+
+        if (!mustRuffOrWorseDiscard) {
+          // Do NOT trump partner's boss lead! Avoid playing trumps if we have non-trumps to follow or discard safely.
+          let nonTrumps = legalCards.filter(c => c.suit !== gameState.trumpSuit);
+          if (nonTrumps.length > 0) {
+            nonTrumps.sort((a, b) => RANK_ORDER[a.rank] - RANK_ORDER[b.rank]);
+            chosenCard = nonTrumps[0];
+          }
+        }
+      }
+
+      if (!chosenCard) {
+        if (fiveHearts) {
+          chosenCard = fiveHearts;
         } else {
-          chosenCard = threeSpades;
+          const nonThreeSpades = legalCards.filter(c => !(c.suit === 'S' && c.rank === '3'));
+          if (nonThreeSpades.length > 0) {
+            nonThreeSpades.sort((a, b) => RANK_ORDER[a.rank] - RANK_ORDER[b.rank]);
+            chosenCard = nonThreeSpades[0];
+          } else {
+            chosenCard = threeSpades;
+          }
         }
       }
     } else {
