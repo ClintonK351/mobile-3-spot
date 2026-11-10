@@ -156,72 +156,98 @@ function setupHumanBiddingUI() {
 }
 
 /* ==========================================
-   REVISED & INTELLIGENT AI BIDDING EVALUATION
-   ========================================== */
-/* ==========================================
-   IMPROVED AI BIDDING EVALUATION
-   Strongly prefers Hearts or No Trump when holding the 5♥
+   CONSERVATIVE AI BIDDING EVALUATION
+   - Rarely bids No Trump (only when almost certain)
+   - Much more likely to pass
+   - Avoids overbidding
    ========================================== */
 function evaluateHandForBidding(pIndex) {
   const hand = gameState.hands[pIndex];
   const suits = ['H', 'D', 'C', 'S'];
-  let bestSuit = 'H';
-  let bestScore = -1;
-  let bestEstimatedTricks = 7;
 
   const hasFiveHearts = hand.some(c => c.suit === 'H' && c.rank === '5');
   const hasThreeSpades = hand.some(c => c.suit === 'S' && c.rank === '3');
 
-  // ---------- No Trump evaluation ----------
-  let highCards = hand.filter(c => RANK_ORDER[c.rank] >= 13).length; // Aces + Kings
-  let secondaryCards = hand.filter(c => RANK_ORDER[c.rank] === 12 || RANK_ORDER[c.rank] === 11).length; // Queens + Jacks
-  let noTrumpScore = highCards * 1.5 + secondaryCards * 0.8 + (hasFiveHearts ? 2.2 : 0) - (hasThreeSpades ? 1.0 : 0);
+  // ---------- Count high cards ----------
+  const aces = hand.filter(c => c.rank === 'A').length;
+  const kings = hand.filter(c => c.rank === 'K').length;
+  const queens = hand.filter(c => c.rank === 'Q').length;
+  const jacks = hand.filter(c => c.rank === 'J').length;
+  const highCards = aces + kings;                 // A + K
+  const secondary = queens + jacks;
 
-  if (noTrumpScore >= 8.0) {
-    return { 
-      suit: 'N', 
-      estimatedTricks: Math.min(12, Math.max(7, Math.floor(noTrumpScore + 1))) 
-    };
+  // ---------- No Trump evaluation (very strict) ----------
+  // Humans only bid No Trump when they are almost certain.
+  // Require strong high-card concentration.
+  let noTrumpScore = (aces * 2.2) + (kings * 1.6) + (queens * 0.9) + (jacks * 0.5);
+  if (hasFiveHearts) noTrumpScore += 1.8;
+  if (hasThreeSpades) noTrumpScore -= 1.5;
+
+  // Only consider No Trump with a very strong hand
+  if (noTrumpScore >= 11.5 && highCards >= 4) {
+    // Even then, be conservative with the number
+    let est = Math.floor(noTrumpScore * 0.85);
+    est = Math.min(10, Math.max(7, est));   // Cap No Trump bids lower
+    return { suit: 'N', estimatedTricks: est };
   }
 
-  // ---------- Suit evaluation ----------
+  // ---------- Suit evaluation (also conservative) ----------
+  let bestSuit = null;
+  let bestScore = 0;
+  let bestEstimatedTricks = 0;
+
   suits.forEach(suit => {
     const suitCards = hand.filter(c => c.suit === suit);
-    const trumpLength = suitCards.length;
-    const highTrumps = suitCards.filter(c => RANK_ORDER[c.rank] >= 10).length;
-    const sideAcesAndKings = hand.filter(c => c.suit !== suit && (c.rank === 'A' || c.rank === 'K')).length;
+    const length = suitCards.length;
+    const highInSuit = suitCards.filter(c => RANK_ORDER[c.rank] >= 11).length; // A,K,Q,J
+    const sideAcesKings = hand.filter(c => c.suit !== suit && (c.rank === 'A' || c.rank === 'K')).length;
 
-    let bonus = 0;
-    if (suit === 'H' && hasFiveHearts) bonus += 3.0;          // Strong bonus for Hearts when holding 5♥
-    if (suit === 'S' && hasThreeSpades) bonus -= 1.8;         // Penalty for Spades with 3♠
+    let score = (length * 0.55) + (highInSuit * 1.35) + (sideAcesKings * 0.75);
 
-    // Critical rule: holding 5♥ makes non-Heart suits very unattractive
-    if (hasFiveHearts && suit !== 'H') {
-      bonus -= 4.5;   // Heavy penalty – almost never choose Clubs/Diamonds/Spades
+    // Strong preference for Hearts when holding the 5♥
+    if (suit === 'H' && hasFiveHearts) {
+      score += 2.8;
     }
 
-    let estTricks = (trumpLength * 0.7) + (highTrumps * 1.2) + (sideAcesAndKings * 0.9) + bonus;
+    // Heavy penalty for non-Hearts when holding 5♥
+    if (hasFiveHearts && suit !== 'H') {
+      score -= 5.0;
+    }
 
-    if (estTricks > bestScore) {
-      bestScore = estTricks;
+    // Penalty for having the 3♠ in Spades
+    if (suit === 'S' && hasThreeSpades) {
+      score -= 2.0;
+    }
+
+    // Extra conservatism: reduce overall optimism
+    score *= 0.82;
+
+    if (score > bestScore) {
+      bestScore = score;
       bestSuit = suit;
-      bestEstimatedTricks = Math.round(estTricks);
+      bestEstimatedTricks = Math.round(score);
     }
   });
 
-  // Extra safety: if we hold the 5♥ and the best non-Heart score is still low,
-  // force Hearts (or No Trump already handled above)
-  if (hasFiveHearts && bestSuit !== 'H' && bestScore < 8.5) {
+  // Force Hearts if we hold the 5♥ and no other suit is clearly strong
+  if (hasFiveHearts && bestSuit !== 'H') {
     bestSuit = 'H';
-    // Recalculate a reasonable estimate for Hearts
-    const heartCards = hand.filter(c => c.suit === 'H');
-    const highHearts = heartCards.filter(c => RANK_ORDER[c.rank] >= 10).length;
-    bestEstimatedTricks = Math.min(12, Math.max(7, Math.round(heartCards.length * 0.8 + highHearts * 1.3 + 2.5)));
+    const heartLength = hand.filter(c => c.suit === 'H').length;
+    const highHearts = hand.filter(c => c.suit === 'H' && RANK_ORDER[c.rank] >= 11).length;
+    bestEstimatedTricks = Math.round((heartLength * 0.7) + (highHearts * 1.4) + 2.2);
   }
 
-  return { 
-    suit: bestSuit, 
-    estimatedTricks: Math.min(12, Math.max(7, bestEstimatedTricks)) 
+  // Final safety: only bid if the estimated tricks are reasonably solid
+  bestEstimatedTricks = Math.min(11, Math.max(7, bestEstimatedTricks));
+
+  // If the hand is mediocre, return a low estimate so the AI will pass
+  if (bestScore < 6.8) {
+    return { suit: bestSuit || 'H', estimatedTricks: 6 }; // Will cause a pass
+  }
+
+  return {
+    suit: bestSuit || 'H',
+    estimatedTricks: bestEstimatedTricks
   };
 }
 
