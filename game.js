@@ -1,4 +1,6 @@
-const PLAYERS = ['South', 'John', 'Andy', 'Dave'];
+const NAME_POOL = ['Bill', 'Mary', 'Aunty Mary', 'Andy', 'Dave', 'John', 'Kurt', 'Sara', 'Therese', 'Lorraine', 'Elaine', 'Clinton', 'Joan'];
+let activePlayerNames = ['South (You)', 'John', 'Andy', 'Dave']; // Will be randomized per match
+
 const SUIT_NAMES = { H: 'Hearts ♥', D: 'Diamonds ♦', C: 'Clubs ♣', S: 'Spades ♠', N: 'No Trump' };
 const SUIT_SYMBOLS = { H: '♥', D: '♦', C: '♣', S: '♠' };
 const RANK_ORDER = { '3': 3, '5': 5, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14 };
@@ -51,6 +53,17 @@ function shuffleDeck(deck) {
   return deck;
 }
 
+function randomizePlayerNames() {
+  let shuffled = [...NAME_POOL].sort(() => 0.5 - Math.random());
+  activePlayerNames[1] = shuffled[0]; // West
+  activePlayerNames[2] = shuffled[1]; // North (Partner)
+  activePlayerNames[3] = shuffled[2]; // East
+
+  document.querySelector('#west .player-name').textContent = activePlayerNames[1];
+  document.querySelector('#north .player-name').textContent = `${activePlayerNames[2]} (Partner)`;
+  document.querySelector('#east .player-name').textContent = activePlayerNames[3];
+}
+
 function dealCards() {
   const deck = shuffleDeck(createDeck());
   gameState.hands = [[], [], [], []];
@@ -74,6 +87,7 @@ function startNewMatch() {
   document.getElementById('gameover-modal').classList.add('hidden');
   gameState.scores = { us: 0, them: 0 };
   gameState.dealerIndex = 0;
+  randomizePlayerNames();
   startNewHand();
 }
 
@@ -136,6 +150,9 @@ function setupHumanBiddingUI() {
   panel.classList.remove('hidden');
 }
 
+/* ==========================================
+   ENHANCED HEURISTIC AI BIDDING EVALUATION
+   ========================================== */
 function evaluateHandForBidding(pIndex) {
   const hand = gameState.hands[pIndex];
   const suits = ['H', 'D', 'C', 'S'];
@@ -146,7 +163,7 @@ function evaluateHandForBidding(pIndex) {
   const hasFiveHearts = hand.some(c => c.suit === 'H' && c.rank === '5');
   const hasThreeSpades = hand.some(c => c.suit === 'S' && c.rank === '3');
 
-  let highCardsCount = hand.filter(c => RANK_ORDER[c.rank] >= 13).length;
+  let highCardsCount = hand.filter(c => RANK_ORDER[c.rank] >= 13).length; // Kings and Aces
   let queensCount = hand.filter(c => RANK_ORDER[c.rank] === 12).length;
   let noTrumpTricks = highCardsCount * 1.2 + queensCount * 0.8 + (hasFiveHearts ? 1.5 : 0);
 
@@ -156,22 +173,30 @@ function evaluateHandForBidding(pIndex) {
 
   suits.forEach(suit => {
     let suitCards = hand.filter(c => c.suit === suit);
-    let topTrumps = suitCards.filter(c => RANK_ORDER[c.rank] >= 11).length;
+    let topTrumps = suitCards.filter(c => RANK_ORDER[c.rank] >= 11).length; // J, Q, K, A
     let highOffSuitAces = hand.filter(c => c.suit !== suit && c.rank === 'A').length;
 
     let estTricks = suitCards.length * 0.85 + topTrumps * 1.1 + highOffSuitAces * 1.0;
 
-    if (hasFiveHearts) estTricks += 2.0; 
+    // Prevent AI from bidding minor/other suits when holding the 5 of Hearts
+    if (hasFiveHearts) {
+      if (suit === 'H') {
+        estTricks += 3.0; 
+      } else {
+        estTricks = -99; // Disallow choosing Clubs, Spades, or Diamonds when holding 5♥
+      }
+    }
+
     if (hasThreeSpades) estTricks -= 0.5;
 
     if (estTricks > bestScore) {
       bestScore = estTricks;
       bestSuit = suit;
-      bestEstimatedTricks = Math.floor(estTricks);
+      bestEstimatedTricks = Math.max(7, Math.floor(estTricks));
     }
   });
 
-  return { suit: bestSuit, estimatedTricks: Math.min(12, bestEstimatedTricks) };
+  return { suit: bestSuit, estimatedTricks: Math.min(12, Math.max(7, bestEstimatedTricks)) };
 }
 
 function processAIBid() {
@@ -281,7 +306,6 @@ function processPlayTurn() {
 }
 
 function isCardBoss(card) {
-  // Check if card is the highest remaining rank in its suit based on current hand and played cards
   let maxRankValue = RANK_ORDER[card.rank];
   for (let i = 0; i < 4; i++) {
     gameState.hands[i].forEach(c => {
@@ -293,6 +317,9 @@ function isCardBoss(card) {
   return RANK_ORDER[card.rank] === maxRankValue;
 }
 
+/* ==========================================
+   HIGH-PRIORITY 5♥ & 3♠ AI PLAY LOGIC
+   ========================================== */
 function playAICard() {
   const pIndex = gameState.activePlayer;
   const hand = gameState.hands[pIndex];
@@ -325,21 +352,17 @@ function playAICard() {
     const isFiveHeartsPlayed = gameState.currentTrick.some(p => p.card.suit === 'H' && p.card.rank === '5');
 
     if (isPartnerWinning) {
-      // Check if partner's lead was a non-trump boss card
       let partnerPlay = gameState.currentTrick.find(p => p.playerIndex === partnerIndex);
       let isPartnerBossLead = partnerPlay && 
                               partnerPlay.card.suit !== gameState.trumpSuit && 
                               isCardBoss(partnerPlay.card);
 
       if (isPartnerBossLead && gameState.trumpSuit && gameState.trumpSuit !== 'N') {
-        // Evaluate exceptions for trumping partner's boss lead:
-        // 1. Holding 5H or 3S or needing lead / short trumps
         let needsLead = fiveHearts || threeSpades || hand.length <= 3;
         let isShortTrumps = hand.filter(c => c.suit === gameState.trumpSuit).length <= 1;
         let mustRuffOrWorseDiscard = legalCards.some(c => c.suit === gameState.trumpSuit) && (needsLead || isShortTrumps);
 
         if (!mustRuffOrWorseDiscard) {
-          // Do NOT trump partner's boss lead! Avoid playing trumps if we have non-trumps to follow or discard safely.
           let nonTrumps = legalCards.filter(c => c.suit !== gameState.trumpSuit);
           if (nonTrumps.length > 0) {
             nonTrumps.sort((a, b) => RANK_ORDER[a.rank] - RANK_ORDER[b.rank]);
@@ -584,6 +607,11 @@ function updateUI() {
   if (dealerBadge) {
     dealerBadge.className = `dealer-${gameState.dealerIndex}`;
   }
+
+  // Update dynamic player names in UI
+  document.querySelector('#west .player-name').textContent = activePlayerNames[1];
+  document.querySelector('#north .player-name').textContent = `${activePlayerNames[2]} (Partner)`;
+  document.querySelector('#east .player-name').textContent = activePlayerNames[3];
 
   const dirs = ['south', 'west', 'north', 'east'];
   dirs.forEach((dir) => {
