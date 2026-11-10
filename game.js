@@ -18,7 +18,10 @@ let gameState = {
   hands: [[], [], [], []],
   currentTrick: [],
   leadSuit: null,
-  isStuckDealer: false
+  isStuckDealer: false,
+  // Track special cards for smarter AI decisions
+  fiveHeartsPlayed: false,
+  threeSpadesPlayed: false
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -101,6 +104,8 @@ function startNewHand() {
   gameState.tricksWon = { us: 0, them: 0 };
   gameState.handPoints = { us: 0, them: 0 };
   gameState.isStuckDealer = false;
+  gameState.fiveHeartsPlayed = false;
+  gameState.threeSpadesPlayed = false;
 
   dealCards();
   gameState.activePlayer = (gameState.dealerIndex + 1) % 4;
@@ -322,69 +327,128 @@ function isCardBoss(card) {
 }
 
 /* ==========================================
-   REVISED & INTELLIGENT AI CARD PLAY LOGIC
+   IMPROVED AI CARD PLAY LOGIC
+   Focus: 5♥ (capture or dump to partner) and 3♠ (stick opponents)
    ========================================== */
 function playAICard() {
   const pIndex = gameState.activePlayer;
   const hand = gameState.hands[pIndex];
   if (!hand || hand.length === 0) return;
 
+  // Determine legal cards (must follow suit if possible)
   let legalCards = hand;
   if (gameState.leadSuit) {
     const matching = hand.filter(c => c.suit === gameState.leadSuit);
     if (matching.length > 0) legalCards = matching;
   }
 
-  let chosenCard = null;
   const partnerIndex = (pIndex + 2) % 4;
   const fiveHearts = legalCards.find(c => c.suit === 'H' && c.rank === '5');
   const threeSpades = legalCards.find(c => c.suit === 'S' && c.rank === '3');
 
-  // Case 1: Leading to the trick
-  if (gameState.currentTrick.length === 0) {
-    let aces = legalCards.filter(c => c.rank === 'A');
-    if (aces.length > 0) {
-      chosenCard = aces[0];
-    } else {
-      let safeCards = legalCards.filter(c => !(c.suit === 'S' && c.rank === '3') && !(c.suit === 'H' && c.rank === '5'));
-      chosenCard = safeCards.length > 0 ? safeCards[0] : legalCards[0];
-    }
-  } 
-  // Case 2: Responding / Following to an active trick
-  else {
-    let currentWinner = getCurrentTrickWinner();
-    let isPartnerWinning = currentWinner && currentWinner.playerIndex === partnerIndex;
+  const currentWinner = getCurrentTrickWinner();
+  const isPartnerWinning = currentWinner && currentWinner.playerIndex === partnerIndex;
+  const isOpponentWinning = currentWinner && currentWinner.playerIndex !== partnerIndex;
 
-    if (isPartnerWinning) {
-      if (fiveHearts && legalCards.includes(fiveHearts)) {
-        chosenCard = fiveHearts;
-      } else {
-        let nonLiability = legalCards.filter(c => !(c.suit === 'S' && c.rank === '3'));
-        if (nonLiability.length > 0) {
-          nonLiability.sort((a, b) => RANK_ORDER[a.rank] - RANK_ORDER[b.rank]);
-          chosenCard = nonLiability[0];
-        } else {
-          chosenCard = threeSpades;
-        }
-      }
+  // Helper: lowest card that is neither special
+  function lowestNonSpecial(cards) {
+    const nonSpecial = cards.filter(c => !(c.suit === 'H' && c.rank === '5') && !(c.suit === 'S' && c.rank === '3'));
+    if (nonSpecial.length === 0) return null;
+    nonSpecial.sort((a, b) => RANK_ORDER[a.rank] - RANK_ORDER[b.rank]);
+    return nonSpecial[0];
+  }
+
+  // Helper: lowest card overall
+  function lowestCard(cards) {
+    const sorted = [...cards].sort((a, b) => RANK_ORDER[a.rank] - RANK_ORDER[b.rank]);
+    return sorted[0];
+  }
+
+  // Helper: cards that currently beat the best card in the trick
+  function getWinningCards(cards) {
+    if (!currentWinner) return cards; // leading – any card "wins" for now
+    return cards.filter(c => beatsCurrentBest(c, currentWinner.card));
+  }
+
+  let chosenCard = null;
+
+  // ========== CASE 1: Leading the trick ==========
+  if (gameState.currentTrick.length === 0) {
+    // Prefer Aces (especially if boss), then high cards, avoid specials
+    const aces = legalCards.filter(c => c.rank === 'A');
+    if (aces.length > 0) {
+      // Prefer Ace of trump if available, otherwise any Ace
+      const trumpAce = aces.find(c => c.suit === gameState.trumpSuit);
+      chosenCard = trumpAce || aces[0];
     } else {
-      let winningCards = legalCards.filter(c => beatsCurrentBest(c, currentWinner.card));
-      
-      if (winningCards.length > 0) {
-        winningCards.sort((a, b) => RANK_ORDER[a.rank] - RANK_ORDER[b.rank]);
-        chosenCard = winningCards[0];
+      // Prefer a high non-special card
+      const highNonSpecial = legalCards
+        .filter(c => !(c.suit === 'H' && c.rank === '5') && !(c.suit === 'S' && c.rank === '3') && RANK_ORDER[c.rank] >= 12)
+        .sort((a, b) => RANK_ORDER[b.rank] - RANK_ORDER[a.rank]);
+      if (highNonSpecial.length > 0) {
+        chosenCard = highNonSpecial[0];
       } else {
-        if (threeSpades && legalCards.includes(threeSpades)) {
-          chosenCard = threeSpades;
-        } else {
-          legalCards.sort((a, b) => RANK_ORDER[a.rank] - RANK_ORDER[b.rank]);
-          chosenCard = legalCards[0];
-        }
+        // Fallback to any non-special, then anything
+        chosenCard = lowestNonSpecial(legalCards) || legalCards[0];
       }
     }
   }
 
+  // ========== CASE 2: Partner is currently winning ==========
+  else if (isPartnerWinning) {
+    // Best action: dump the 5♥ onto partner
+    if (fiveHearts) {
+      chosenCard = fiveHearts;
+    }
+    // Never dump 3♠ on partner
+    else if (threeSpades) {
+      chosenCard = lowestNonSpecial(legalCards) || threeSpades;
+    }
+    // Otherwise play lowest non-winning / low card
+    else {
+      chosenCard = lowestCard(legalCards);
+    }
+  }
+
+  // ========== CASE 3: We can win the trick ourselves ==========
+  else if (getWinningCards(legalCards).length > 0) {
+    const winningCards = getWinningCards(legalCards);
+
+    // If 5♥ is a winning card, take it (capture the +5)
+    if (fiveHearts && winningCards.includes(fiveHearts)) {
+      chosenCard = fiveHearts;
+    } else {
+      // Take the cheapest (lowest rank) winning card
+      winningCards.sort((a, b) => RANK_ORDER[a.rank] - RANK_ORDER[b.rank]);
+      chosenCard = winningCards[0];
+    }
+  }
+
+  // ========== CASE 4: Opponent is winning and we cannot beat it ==========
+  else if (isOpponentWinning) {
+    // Stick them with the 3♠ if we have it
+    if (threeSpades) {
+      chosenCard = threeSpades;
+    }
+    // Do NOT give them the 5♥ unless forced
+    else if (fiveHearts) {
+      chosenCard = lowestNonSpecial(legalCards) || fiveHearts;
+    }
+    // Otherwise dump lowest
+    else {
+      chosenCard = lowestCard(legalCards);
+    }
+  }
+
+  // ========== CASE 5: Fallback (should rarely hit) ==========
+  else {
+    // Prefer non-specials
+    chosenCard = lowestNonSpecial(legalCards) || legalCards[0];
+  }
+
+  // Safety net
   if (!chosenCard) chosenCard = legalCards[0];
+
   playCard(pIndex, chosenCard);
 }
 
@@ -402,9 +466,13 @@ function getCurrentTrickWinner() {
 }
 
 function beatsCurrentBest(cardCandidate, bestCard) {
+  if (!bestCard) return true; // leading
+
+  // Trump beats non-trump
   if (cardCandidate.suit === gameState.trumpSuit && bestCard.suit !== gameState.trumpSuit) {
     return true;
   }
+  // Same suit – higher rank wins
   if (cardCandidate.suit === bestCard.suit) {
     return RANK_ORDER[cardCandidate.rank] > RANK_ORDER[bestCard.rank];
   }
@@ -432,6 +500,10 @@ function playCard(playerIndex, card) {
   const hand = gameState.hands[playerIndex];
   const cardIdx = hand.findIndex(c => c.suit === card.suit && c.rank === card.rank);
   if (cardIdx !== -1) hand.splice(cardIdx, 1);
+
+  // Track specials
+  if (card.suit === 'H' && card.rank === '5') gameState.fiveHeartsPlayed = true;
+  if (card.suit === 'S' && card.rank === '3') gameState.threeSpadesPlayed = true;
 
   if (gameState.currentTrick.length === 0) {
     gameState.leadSuit = card.suit;
