@@ -151,52 +151,56 @@ function setupHumanBiddingUI() {
 }
 
 /* ==========================================
-   ENHANCED HEURISTIC AI BIDDING EVALUATION
+   REVISED & INTELLIGENT AI BIDDING EVALUATION
    ========================================== */
 function evaluateHandForBidding(pIndex) {
   const hand = gameState.hands[pIndex];
   const suits = ['H', 'D', 'C', 'S'];
   let bestSuit = 'H';
   let bestScore = -1;
-  let bestEstimatedTricks = 0;
+  let bestEstimatedTricks = 7;
 
   const hasFiveHearts = hand.some(c => c.suit === 'H' && c.rank === '5');
   const hasThreeSpades = hand.some(c => c.suit === 'S' && c.rank === '3');
 
-  let highCardsCount = hand.filter(c => RANK_ORDER[c.rank] >= 13).length; // Kings and Aces
-  let queensCount = hand.filter(c => RANK_ORDER[c.rank] === 12).length;
-  let noTrumpTricks = highCardsCount * 1.2 + queensCount * 0.8 + (hasFiveHearts ? 1.5 : 0);
+  // Evaluate No Trump Potential
+  let highCards = hand.filter(c => RANK_ORDER[c.rank] >= 13).length; // Kings, Aces
+  let secondaryCards = hand.filter(c => RANK_ORDER[c.rank] === 12 || RANK_ORDER[c.rank] === 11).length; // Queens, Jacks
+  let noTrumpScore = highCards * 1.5 + secondaryCards * 0.8 + (hasFiveHearts ? 2.0 : 0) - (hasThreeSpades ? 1.0 : 0);
 
-  if (noTrumpTricks >= 8.5) {
-    return { suit: 'N', estimatedTricks: Math.min(12, Math.floor(noTrumpTricks)) };
+  if (noTrumpScore >= 8.5) {
+    return { suit: 'N', estimatedTricks: Math.min(12, Math.max(7, Math.floor(noTrumpScore + 1))) };
   }
 
+  // Evaluate Suit Contracts
   suits.forEach(suit => {
-    let suitCards = hand.filter(c => c.suit === suit);
-    let topTrumps = suitCards.filter(c => RANK_ORDER[c.rank] >= 11).length; // J, Q, K, A
-    let highOffSuitAces = hand.filter(c => c.suit !== suit && c.rank === 'A').length;
+    const suitCards = hand.filter(c => c.suit === suit);
+    const trumpLength = suitCards.length;
+    
+    // Count high trumps (A, K, Q, J, 10)
+    const highTrumps = suitCards.filter(c => RANK_ORDER[c.rank] >= 10).length;
+    
+    // Count outside Aces/Kings for side suit strength
+    const sideAcesAndKings = hand.filter(c => c.suit !== suit && (c.rank === 'A' || c.rank === 'K')).length;
 
-    let estTricks = suitCards.length * 0.85 + topTrumps * 1.1 + highOffSuitAces * 1.0;
+    // 3-Spot specific card value adjustments
+    let bonus = 0;
+    if (suit === 'H' && hasFiveHearts) bonus += 2.5;
+    if (suit === 'S' && hasThreeSpades) bonus -= 1.5; // 3 of Spades is a liability (-3 pts)
 
-    // Prevent AI from bidding minor/other suits when holding the 5 of Hearts
-    if (hasFiveHearts) {
-      if (suit === 'H') {
-        estTricks += 3.0; 
-      } else {
-        estTricks = -99; // Disallow choosing Clubs, Spades, or Diamonds when holding 5♥
-      }
-    }
-
-    if (hasThreeSpades) estTricks -= 0.5;
+    let estTricks = (trumpLength * 0.7) + (highTrumps * 1.2) + (sideAcesAndKings * 0.9) + bonus;
 
     if (estTricks > bestScore) {
       bestScore = estTricks;
       bestSuit = suit;
-      bestEstimatedTricks = Math.max(7, Math.floor(estTricks));
+      bestEstimatedTricks = Math.round(estTricks);
     }
   });
 
-  return { suit: bestSuit, estimatedTricks: Math.min(12, Math.max(7, bestEstimatedTricks)) };
+  return { 
+    suit: bestSuit, 
+    estimatedTricks: Math.min(12, Math.max(7, bestEstimatedTricks)) 
+  };
 }
 
 function processAIBid() {
@@ -318,7 +322,7 @@ function isCardBoss(card) {
 }
 
 /* ==========================================
-   HIGH-PRIORITY 5♥ & 3♠ AI PLAY LOGIC
+   REVISED & INTELLIGENT AI CARD PLAY LOGIC
    ========================================== */
 function playAICard() {
   const pIndex = gameState.activePlayer;
@@ -333,86 +337,48 @@ function playAICard() {
 
   let chosenCard = null;
   const partnerIndex = (pIndex + 2) % 4;
-
   const fiveHearts = legalCards.find(c => c.suit === 'H' && c.rank === '5');
   const threeSpades = legalCards.find(c => c.suit === 'S' && c.rank === '3');
 
+  // Case 1: Leading to the trick
   if (gameState.currentTrick.length === 0) {
-    const aces = legalCards.filter(c => c.rank === 'A');
+    let aces = legalCards.filter(c => c.rank === 'A');
     if (aces.length > 0) {
       chosenCard = aces[0];
     } else {
-      const safeLeads = legalCards.filter(c => !(c.suit === 'H' && c.rank === '5') && !(c.suit === 'S' && c.rank === '3'));
-      chosenCard = safeLeads.length > 0 ? safeLeads[0] : legalCards[0];
+      let safeCards = legalCards.filter(c => !(c.suit === 'S' && c.rank === '3') && !(c.suit === 'H' && c.rank === '5'));
+      chosenCard = safeCards.length > 0 ? safeCards[0] : legalCards[0];
     }
-  } else {
+  } 
+  // Case 2: Responding / Following to an active trick
+  else {
     let currentWinner = getCurrentTrickWinner();
     let isPartnerWinning = currentWinner && currentWinner.playerIndex === partnerIndex;
-    
-    const isFiveHeartsPlayed = gameState.currentTrick.some(p => p.card.suit === 'H' && p.card.rank === '5');
 
     if (isPartnerWinning) {
-      let partnerPlay = gameState.currentTrick.find(p => p.playerIndex === partnerIndex);
-      let isPartnerBossLead = partnerPlay && 
-                              partnerPlay.card.suit !== gameState.trumpSuit && 
-                              isCardBoss(partnerPlay.card);
-
-      if (isPartnerBossLead && gameState.trumpSuit && gameState.trumpSuit !== 'N') {
-        let needsLead = fiveHearts || threeSpades || hand.length <= 3;
-        let isShortTrumps = hand.filter(c => c.suit === gameState.trumpSuit).length <= 1;
-        let mustRuffOrWorseDiscard = legalCards.some(c => c.suit === gameState.trumpSuit) && (needsLead || isShortTrumps);
-
-        if (!mustRuffOrWorseDiscard) {
-          let nonTrumps = legalCards.filter(c => c.suit !== gameState.trumpSuit);
-          if (nonTrumps.length > 0) {
-            nonTrumps.sort((a, b) => RANK_ORDER[a.rank] - RANK_ORDER[b.rank]);
-            chosenCard = nonTrumps[0];
-          }
-        }
-      }
-
-      if (!chosenCard) {
-        if (fiveHearts) {
-          chosenCard = fiveHearts;
+      if (fiveHearts && legalCards.includes(fiveHearts)) {
+        chosenCard = fiveHearts;
+      } else {
+        let nonLiability = legalCards.filter(c => !(c.suit === 'S' && c.rank === '3'));
+        if (nonLiability.length > 0) {
+          nonLiability.sort((a, b) => RANK_ORDER[a.rank] - RANK_ORDER[b.rank]);
+          chosenCard = nonLiability[0];
         } else {
-          const nonThreeSpades = legalCards.filter(c => !(c.suit === 'S' && c.rank === '3'));
-          if (nonThreeSpades.length > 0) {
-            nonThreeSpades.sort((a, b) => RANK_ORDER[a.rank] - RANK_ORDER[b.rank]);
-            chosenCard = nonThreeSpades[0];
-          } else {
-            chosenCard = threeSpades;
-          }
-        }
-      }
-    } else {
-      if (isFiveHeartsPlayed) {
-        let winningCards = legalCards.filter(c => beatsCurrentBest(c, currentWinner.card));
-        if (winningCards.length > 0) {
-          winningCards.sort((a, b) => RANK_ORDER[b.rank] - RANK_ORDER[a.rank]);
-          chosenCard = winningCards[0];
-        }
-      }
-
-      if (!chosenCard && threeSpades) {
-        let winningCards = legalCards.filter(c => beatsCurrentBest(c, currentWinner.card));
-        if (winningCards.length === 0 || gameState.leadSuit === 'S') {
           chosenCard = threeSpades;
         }
       }
-
-      if (!chosenCard) {
-        let winningCards = legalCards.filter(c => beatsCurrentBest(c, currentWinner.card));
-        if (winningCards.length > 0) {
-          winningCards.sort((a, b) => RANK_ORDER[a.rank] - RANK_ORDER[b.rank]);
-          chosenCard = winningCards[0];
+    } else {
+      let winningCards = legalCards.filter(c => beatsCurrentBest(c, currentWinner.card));
+      
+      if (winningCards.length > 0) {
+        winningCards.sort((a, b) => RANK_ORDER[a.rank] - RANK_ORDER[b.rank]);
+        chosenCard = winningCards[0];
+      } else {
+        if (threeSpades && legalCards.includes(threeSpades)) {
+          chosenCard = threeSpades;
         } else {
-          const safeLosses = legalCards.filter(c => !(c.suit === 'H' && c.rank === '5'));
-          if (safeLosses.length > 0) {
-            safeLosses.sort((a, b) => RANK_ORDER[a.rank] - RANK_ORDER[b.rank]);
-            chosenCard = safeLosses[0];
-          } else {
-            chosenCard = legalCards[0];
-          }
+          legalCards.sort((a, b) => RANK_ORDER[a.rank] - RANK_ORDER[b.rank]);
+          chosenCard = legalCards[0];
         }
       }
     }
@@ -608,7 +574,6 @@ function updateUI() {
     dealerBadge.className = `dealer-${gameState.dealerIndex}`;
   }
 
-  // Update dynamic player names in UI
   document.querySelector('#west .player-name').textContent = activePlayerNames[1];
   document.querySelector('#north .player-name').textContent = `${activePlayerNames[2]} (Partner)`;
   document.querySelector('#east .player-name').textContent = activePlayerNames[3];
